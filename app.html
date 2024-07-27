@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced 3D Shape Simulator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; }
+        #app { display: flex; height: 100vh; }
+        #menu { width: 200px; padding: 20px; background: #f0f0f0; }
+        #content { flex-grow: 1; display: flex; flex-direction: column; }
+        #viewport { flex-grow: 1; }
+        #controls { padding: 10px; background: #e0e0e0; }
+        button { margin: 5px; padding: 5px 10px; }
+        #grid-editor { display: none; }
+        #grid { display: grid; gap: 1px; background: #ccc; }
+        .cell { width: 50px; height: 50px; background: #fff; }
+        .object { background: #007bff; }
+        .box { background: #28a745; }
+        .wall { background: #8b4513; }
+        #settings { padding: 10px; background: #e0e0e0; }
+        #settings input { margin: 5px; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="menu">
+            <h2>Menu</h2>
+            <button onclick="showHome()">Home</button>
+            <button onclick="show2DEditor()">2D Grid Editor</button>
+            <button onclick="show3DSimulator()">3D Simulator</button>
+        </div>
+        <div id="content">
+            <div id="home">
+                <h1>Welcome to 3D Shape Simulator</h1>
+                <p>Choose an option from the menu to get started.</p>
+            </div>
+            <div id="grid-editor" style="display:none;">
+                <h2>2D Grid Editor</h2>
+                <div>
+                    <button onclick="setGridSize(5)">5x5</button>
+                    <button onclick="setGridSize(10)">10x10</button>
+                    <button onclick="setGridSize(15)">15x15</button>
+                </div>
+                <div>
+                    <button onclick="setActiveItem('empty')">Empty</button>
+                    <button onclick="setActiveItem('object')">Object</button>
+                    <button onclick="setActiveItem('box')">Box</button>
+                    <button onclick="setActiveItem('wall')">Wall</button>
+                </div>
+                <div>
+                    <label>Wall Height: <input type="number" id="wall-height" value="2" min="1" max="10" step="0.1"></label>
+                    <label>Block Height: <input type="number" id="block-height" value="1" min="0.5" max="5" step="0.1"></label>
+                </div>
+                <div id="grid"></div>
+                <button onclick="saveGrid()">Save Grid</button>
+            </div>
+            <div id="viewport" style="display:none;"></div>
+            <div id="settings" style="display:none;">
+                <h3>Character Settings</h3>
+                <label>Height: <input type="number" id="character-height" value="1.8" min="0.5" max="3" step="0.1"></label>
+                <label>Width: <input type="number" id="character-width" value="0.5" min="0.1" max="1" step="0.1"></label>
+                <label>Depth: <input type="number" id="character-depth" value="0.3" min="0.1" max="1" step="0.1"></label>
+                <button onclick="updateCharacterDimensions()">Update Character</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        let scene, camera, renderer, character;
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+        let rotateLeft = false, rotateRight = false;
+        let gridSize = 10;
+        let activeItem = 'empty';
+        const obstacles = [];
+        const GRID_SIZE = 1; // Size of each grid cell
+
+        function showHome() {
+            document.getElementById('home').style.display = 'block';
+            document.getElementById('grid-editor').style.display = 'none';
+            document.getElementById('viewport').style.display = 'none';
+            document.getElementById('settings').style.display = 'none';
+        }
+
+        function show2DEditor() {
+            document.getElementById('home').style.display = 'none';
+            document.getElementById('grid-editor').style.display = 'block';
+            document.getElementById('viewport').style.display = 'none';
+            document.getElementById('settings').style.display = 'none';
+            createGrid();
+        }
+
+        function show3DSimulator() {
+            document.getElementById('home').style.display = 'none';
+            document.getElementById('grid-editor').style.display = 'none';
+            document.getElementById('viewport').style.display = 'block';
+            document.getElementById('settings').style.display = 'block';
+            if (!scene) {
+                init3D();
+            } else {
+                importGrid();
+            }
+        }
+
+        function setGridSize(size) {
+            gridSize = size;
+            createGrid();
+        }
+
+        function setActiveItem(item) {
+            activeItem = item;
+        }
+
+        function createGrid() {
+            const grid = document.getElementById('grid');
+            grid.innerHTML = '';
+            grid.style.gridTemplateColumns = `repeat(${gridSize}, 50px)`;
+
+            for (let i = 0; i < gridSize * gridSize; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.addEventListener('click', () => toggleCell(cell));
+                grid.appendChild(cell);
+            }
+        }
+
+        function toggleCell(cell) {
+            cell.className = 'cell ' + activeItem;
+        }
+
+        function saveGrid() {
+            const grid = document.getElementById('grid');
+            const cells = grid.getElementsByClassName('cell');
+            const gridData = [];
+
+            for (let i = 0; i < gridSize; i++) {
+                const row = [];
+                for (let j = 0; j < gridSize; j++) {
+                    const cell = cells[i * gridSize + j];
+                    if (cell.classList.contains('object')) {
+                        row.push('object');
+                    } else if (cell.classList.contains('box')) {
+                        row.push('box');
+                    } else if (cell.classList.contains('wall')) {
+                        row.push('wall');
+                    } else {
+                        row.push(null);
+                    }
+                }
+                gridData.push(row);
+            }
+
+            localStorage.setItem('2dGridData', JSON.stringify(gridData));
+            alert('Grid saved successfully!');
+        }
+
+        function createCharacter() {
+            const height = parseFloat(document.getElementById('character-height').value);
+            const width = parseFloat(document.getElementById('character-width').value);
+            const depth = parseFloat(document.getElementById('character-depth').value);
+
+            // Create a group to hold all parts of the character
+            character = new THREE.Group();
+
+            // Body
+            const bodyGeometry = new THREE.BoxGeometry(width, height * 0.5, depth);
+            const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.y = height * 0.25;
+            character.add(body);
+
+            // Head
+            const headGeometry = new THREE.SphereGeometry(width * 0.4, 32, 32);
+            const headMaterial = new THREE.MeshPhongMaterial({ color: 0xffcccc });
+            const head = new THREE.Mesh(headGeometry, headMaterial);
+            head.position.y = height * 0.5 + width * 0.4;
+            character.add(head);
+
+            // Legs
+            const legGeometry = new THREE.BoxGeometry(width * 0.25, height * 0.45, depth * 0.25);
+            const legMaterial = new THREE.MeshPhongMaterial({ color: 0x0000ff });
+            const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
+            leftLeg.position.set(-width * 0.2, -height * 0.225, 0);
+            character.add(leftLeg);
+            const rightLeg = leftLeg.clone();
+            rightLeg.position.x = width * 0.2;
+            character.add(rightLeg);
+
+            // Arms
+            const armGeometry = new THREE.BoxGeometry(width * 0.2, height * 0.4, depth * 0.2);
+            const armMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+            const leftArm = new THREE.Mesh(armGeometry, armMaterial);
+            leftArm.position.set(-width * 0.6, height * 0.1, 0);
+            character.add(leftArm);
+            const rightArm = leftArm.clone();
+            rightArm.position.x = width * 0.6;
+            character.add(rightArm);
+
+            character.position.set(0, height * 0.5, 0);
+            scene.add(character);
+            return character;
+        }
+
+        function updateCharacterDimensions() {
+            scene.remove(character);
+            character = createCharacter();
+        }
+
+        function updateCharacterPosition() {
+            const moveSpeed = 0.1;
+            const rotateSpeed = 0.05;
+
+            if (rotateLeft) character.rotation.y += rotateSpeed;
+            if (rotateRight) character.rotation.y -= rotateSpeed;
+
+            const direction = new THREE.Vector3(0, 0, -1);
+            direction.applyQuaternion(character.quaternion);
+            direction.normalize();
+
+            const sideways = new THREE.Vector3(-1, 0, 0);
+            sideways.applyQuaternion(character.quaternion);
+            sideways.normalize();
+
+            const oldPosition = character.position.clone();
+
+            if (moveForward) character.position.addScaledVector(direction, moveSpeed);
+            if (moveBackward) character.position.addScaledVector(direction, -moveSpeed);
+            if (moveLeft) character.position.addScaledVector(sideways, moveSpeed);
+            if (moveRight) character.position.addScaledVector(sideways, -moveSpeed);
+
+            if (checkCollision()) {
+                character.position.copy(oldPosition);
+            }
+
+            updateCameraPosition();
+        }
+
+        function updateCameraPosition() {
+            const offset = new THREE.Vector3(0, 5, 10);
+            offset.applyQuaternion(character.quaternion);
+            camera.position.copy(character.position).add(offset);
+            camera.lookAt(character.position);
+        }
+
+        function checkCollision() {
+            const characterPosition = new THREE.Vector2(
+                Math.round(character.position.x / GRID_SIZE),
+                Math.round(character.position.z / GRID_SIZE)
+            );
+
+            for (const obstacle of obstacles) {
+                const obstaclePosition = new THREE.Vector2(
+                    Math.round(obstacle.position.x / GRID_SIZE),
+                    Math.round(obstacle.position.z / GRID_SIZE)
+                );
+
+                if (characterPosition.equals(obstaclePosition)) {
+                    console.log('Collision detected!');
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function importGrid() {
+            const gridData = JSON.parse(localStorage.getItem('2dGridData'));
+            if (!gridData) {
+                console.error('No grid data found.');
+                return;
+            }
+
+            // Clear existing obstacles
+            obstacles.forEach(obstacle => scene.remove(obstacle));
+            obstacles.length = 0;
+
+            const wallHeight = parseFloat(document.getElementById('wall-height').value);
+            const blockHeight = parseFloat(document.getElementById('block-height').value);
+
+            gridData.forEach((row, i) => {
+                row.forEach((cell, j) => {
+                    if (cell) {
+                        let geometry, material;
+                        if (cell === 'object') {
+                            geometry = new THREE.BoxGeometry(GRID_SIZE, blockHeight, GRID_SIZE);
+                            material = new THREE.MeshBasicMaterial({ color: 0x007bff });
+                        } else if (cell === 'box') {
+                            geometry = new THREE.BoxGeometry(GRID_SIZE, blockHeight * 2, GRID_SIZE);
+                            material = new THREE.MeshBasicMaterial({ color: 0x28a745 });
+                        } else if (cell === 'wall') {
+                            geometry = new THREE.BoxGeometry(GRID_SIZE, wallHeight, GRID_SIZE * 0.1);
+                            material = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
+                        }
+                        const cube = new THREE.Mesh(geometry, material);
+                        cube.position.set(j * GRID_SIZE - (gridSize * GRID_SIZE) / 2, geometry.parameters.height / 2, i * GRID_SIZE - (gridSize * GRID_SIZE) / 2);
+                        scene.add(cube);
+                        obstacles.push(cube);
+                    }
+                });
+            });
+
+            console.log('Grid imported. Obstacle count:', obstacles.length);
+        }
+
+        function init3D() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('viewport').appendChild(renderer.domElement);
+
+            const light = new THREE.PointLight(0xffffff, 1, 100);
+            light.position.set(0, 10, 0);
+            scene.add(light);
+
+            // Add ambient light
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            scene.add(ambientLight);
+
+            // Add grid helper
+            const gridHelper = new THREE.GridHelper(gridSize * GRID_SIZE, gridSize);
+            gridHelper.position.set(0, 0, 0);
+            scene.add(gridHelper);
+
+            character = createCharacter();
+            importGrid();
+
+            updateCameraPosition();
+            animate();
+
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+        }
+
+        function onKeyDown(event) {
+            switch (event.code) {
+                case 'KeyW': moveForward = true; break;
+                case 'KeyS': moveBackward = true; break;
+                case 'KeyA': moveLeft = true; break;
+                case 'KeyD': moveRight = true; break;
+                case 'ArrowLeft': rotateLeft = true; break;
+                case 'ArrowRight': rotateRight = true; break;
+            }
+        }
+
+        function onKeyUp(event) {
+            switch (event.code) {
+                case 'KeyW': moveForward = false; break;
+                case 'KeyS': moveBackward = false; break;
+                case 'KeyA': moveLeft = false; break;
+                case 'KeyD': moveRight = false; break;
+                case 'ArrowLeft': rotateLeft = false; break;
+                case 'ArrowRight': rotateRight = false; break;
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            updateCharacterPosition();
+            renderer.render(scene, camera);
+        }
+
+        showHome(); // Start with the home screen
+    </script>
+</body>
+</html>
