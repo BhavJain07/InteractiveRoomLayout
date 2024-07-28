@@ -433,7 +433,83 @@
             }, { binary: false });
         }
 
-        showHome(); // Start with the home screen
+        // Add these functions at the end of your script
+
+        function showHome() {
+            document.getElementById('home').style.display = 'block';
+            document.getElementById('grid-editor').style.display = 'none';
+            document.getElementById('viewport').style.display = 'none';
+            document.getElementById('settings').style.display = 'none';
+        }
+
+        function show2DEditor() {
+            document.getElementById('home').style.display = 'none';
+            document.getElementById('grid-editor').style.display = 'block';
+            document.getElementById('viewport').style.display = 'none';
+            document.getElementById('settings').style.display = 'none';
+            initializeGrid();
+        }
+
+        function show3DSimulator() {
+            document.getElementById('home').style.display = 'none';
+            document.getElementById('grid-editor').style.display = 'none';
+            document.getElementById('viewport').style.display = 'block';
+            document.getElementById('settings').style.display = 'block';
+            if (!scene) {
+                init3D();
+            }
+        }
+
+        function setGridSize(size) {
+            gridSize = size;
+            initializeGrid();
+        }
+
+        function setActiveItem(item) {
+            activeItem = item;
+        }
+
+        function setRoofItem(item) {
+            activeRoofItem = item;
+        }
+
+        function initializeGrid() {
+            const grid = document.getElementById('grid');
+            const roofGrid = document.getElementById('roof-grid');
+            grid.innerHTML = '';
+            roofGrid.innerHTML = '';
+            grid.style.gridTemplateColumns = `repeat(${gridSize}, 50px)`;
+            roofGrid.style.gridTemplateColumns = `repeat(${gridSize}, 50px)`;
+
+            for (let i = 0; i < gridSize * gridSize; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.addEventListener('click', () => setCellType(cell, false));
+                grid.appendChild(cell);
+
+                const roofCell = document.createElement('div');
+                roofCell.className = 'cell';
+                roofCell.addEventListener('click', () => setCellType(roofCell, true));
+                roofGrid.appendChild(roofCell);
+            }
+        }
+
+        function setCellType(cell, isRoof) {
+            cell.className = 'cell ' + (isRoof ? activeRoofItem : activeItem);
+        }
+
+        function saveGrid() {
+            const gridData = Array.from(document.getElementById('grid').children).map(cell => cell.className.split(' ')[1] || 'empty');
+            const roofData = Array.from(document.getElementById('roof-grid').children).map(cell => cell.className.split(' ')[1] || 'empty');
+            
+            localStorage.setItem('2dGridData', JSON.stringify(gridData));
+            localStorage.setItem('2dRoofData', JSON.stringify(roofData));
+            
+            alert('Grid saved successfully!');
+        }
+
+        // Initialize the app
+        showHome();
     </script>
 </body>
 </html>
