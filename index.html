@@ -532,20 +532,21 @@
             popup.style.left = '50%';
             popup.style.top = '50%';
             popup.style.transform = 'translate(-50%, -50%)';
-            popup.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-            popup.style.color = 'white';
-            popup.style.padding = '20px';
-            popup.style.borderRadius = '10px';
+            popup.style.backgroundColor = 'white';
+            popup.style.color = 'black';
+            popup.style.padding = '30px';
+            popup.style.borderRadius = '15px';
             popup.style.zIndex = '1000';
             popup.style.textAlign = 'center';
+            popup.style.boxShadow = '0 0 20px rgba(0, 0, 0, 0.5)';
 
-            popup.innerHTML = `
-                <h3>3D Scene Exported!</h3>
-                <p>To view your scene, go to:</p>
-                <a href="https://gltf-viewer.donmccurdy.com/" target="_blank" style="color: #00ff00;">
+            popup.innerHTML = `https://gltf-viewer.donmccurdy.com/https://gltf-viewer.donmccurdy.com/
+                <h3 style="font-size: 24px; font-weight: bold;">3D Scene Exported!</h3>
+                <p style="font-size: 18px;">To view your scene, go to:</p>
+                <a href="https://gltf-viewer.donmccurdy.com/" target="_blank" style="color: #ff0000; font-size: 18px; font-weight: bold;">
                     https://gltf-viewer.donmccurdy.com/
                 </a>
-                <p>Drag and drop your exported file into the browser window to view it.</p>
+                <p style="font-size: 18px;">Drag and drop your exported file into the browser window to view it.</p>
             `;
 
             document.body.appendChild(popup);
