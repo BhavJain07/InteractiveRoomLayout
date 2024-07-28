@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced 3D Shape Simulator</title>
+    <title>3D House Layout Maker</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
     <style>
         body { margin: 0; font-family: Arial, sans-serif; }
         #app { display: flex; height: 100vh; }
@@ -14,12 +16,14 @@
         #controls { padding: 10px; background: #e0e0e0; }
         button { margin: 5px; padding: 5px 10px; }
         #grid-editor { display: none; }
-        #grid { display: grid; gap: 1px; background: #ccc; }
+        #grid, #roof-grid { display: grid; gap: 1px; background: #ccc; }
         .cell { width: 50px; height: 50px; background: #fff; }
-        .object { background: #007bff; }
-        .box { background: #28a745; }
+        .couch { background: #007bff; }
+        .desk { background: #28a745; }
+        .shelf { background: #ffc107; }
         .wall { background: #8b4513; }
-        #error-log { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(255,0,0,0.8); color: white; padding: 10px; display: none; }
+        .fan { background: #17a2b8; }
+        .light { background: #ffc107; }
         #settings { padding: 10px; background: #e0e0e0; }
         #settings input { margin: 5px; }
     </style>
@@ -28,104 +32,142 @@
     <div id="app">
         <div id="menu">
             <h2>Menu</h2>
-            <button onclick="safeCall(showHome)">Home</button>
-            <button onclick="safeCall(show2DEditor)">2D Grid Editor</button>
-            <button onclick="safeCall(show3DSimulator)">3D Simulator</button>
+            <button onclick="showHome()">Home</button>
+            <button onclick="show2DEditor()">2D Grid Editor</button>
+            <button onclick="show3DSimulator()">3D Simulator</button>
         </div>
         <div id="content">
             <div id="home">
-                <h1>Welcome to 3D Shape Simulator</h1>
+                <h1>Welcome to 3D House Layout Maker</h1>
                 <p>Choose an option from the menu to get started.</p>
-                <div id="controls">
-                    <button onclick="safeCall(importGrid)">Import 2D Grid</button>
-                    <div id="settings">
-                        <label>Width: <input type="number" id="width" value="0.5" step="0.1"></label>
-                        <label>Height: <input type="number" id="height" value="1.8" step="0.1"></label>
-                        <label>Depth: <input type="number" id="depth" value="0.5" step="0.1"></label>
-                        <button onclick="safeCall(updateCharacterDimensions)">Update Character</button>
-                    </div>
-                </div>
             </div>
             <div id="grid-editor" style="display:none;">
                 <h2>2D Grid Editor</h2>
                 <div>
-                    <button onclick="safeCall(() => setGridSize(5))">5x5</button>
-                    <button onclick="safeCall(() => setGridSize(10))">10x10</button>
-                    <button onclick="safeCall(() => setGridSize(15))">15x15</button>
+                    <button onclick="setGridSize(5)">5x5</button>
+                    <button onclick="setGridSize(10)">10x10</button>
+                    <button onclick="setGridSize(15)">15x15</button>
+                    <button onclick="setGridSize(20)">20x20</button>
                 </div>
                 <div>
-                    <button onclick="safeCall(() => setActiveItem('empty'))">Empty</button>
-                    <button onclick="safeCall(() => setActiveItem('object'))">Object</button>
-                    <button onclick="safeCall(() => setActiveItem('box'))">Box</button>
-                    <button onclick="safeCall(() => setActiveItem('wall'))">Wall</button>
-                </div>
-                <div>
-                    <label>Obstacle Width: <input type="number" id="obstacle-width" value="5" step="1"></label>
-                    <label>Obstacle Height: <input type="number" id="obstacle-height" value="10" step="1"></label>
+                    <button onclick="setActiveItem('empty')">Empty</button>
+                    <button onclick="setActiveItem('couch')">Couch</button>
+                    <button onclick="setActiveItem('desk')">Desk</button>
+                    <button onclick="setActiveItem('shelf')">Shelf</button>
+                    <button onclick="setActiveItem('wall')">Wall</button>
                 </div>
                 <div id="grid"></div>
-                <button onclick="safeCall(saveGrid)">Save Grid</button>
+                <h3>Roof Editor</h3>
+                <div>
+                    <button onclick="setRoofItem('empty')">Empty</button>
+                    <button onclick="setRoofItem('fan')">Fan</button>
+                    <button onclick="setRoofItem('light')">Light</button>
+                </div>
+                <div id="roof-grid"></div>
+                <button onclick="saveGrid()">Save Grid</button>
             </div>
             <div id="viewport" style="display:none;"></div>
+            <div id="settings" style="display:none;">
+                <h3>Layout Settings</h3>
+                <label>Grid Size (ft): <input type="number" id="grid-size" value="20" min="10" max="100" step="1"></label>
+                <label>Cell Size (ft): <input type="number" id="cell-size" value="1" min="0.5" max="5" step="0.1"></label>
+                <label>Wall Height (ft): <input type="number" id="wall-height" value="8" min="6" max="20" step="0.1"></label>
+                <label>Wall Thickness (ft): <input type="number" id="wall-thickness" value="0.5" min="0.1" max="2" step="0.1"></label>
+                <label>Roof Height (ft): <input type="number" id="roof-height" value="10" min="8" max="30" step="0.1"></label>
+                <button onclick="updateLayoutSettings()">Update Layout</button>
+                
+                <h3>Character Settings</h3>
+                <label>Height (ft): <input type="number" id="character-height" value="5.9" min="3" max="8" step="0.1"></label>
+                <label>Width (ft): <input type="number" id="character-width" value="1.5" min="1" max="3" step="0.1"></label>
+                <label>Depth (ft): <input type="number" id="character-depth" value="1" min="0.5" max="2" step="0.1"></label>
+                <button onclick="updateCharacterDimensions()">Update Character</button>
+                
+                <button onclick="exportScene()">Export 3D Scene</button>
+            </div>
         </div>
     </div>
-    <div id="error-log"></div>
     <script>
-        let scene, camera, renderer, character;
+        let scene, camera, renderer, character, gridHelper;
         let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
-        let velocity = new THREE.Vector3();
-        let cameraYaw = 0, cameraPitch = 0;
+        let rotateLeft = false, rotateRight = false;
         let gridSize = 10;
         let activeItem = 'empty';
+        let activeRoofItem = 'empty';
         const obstacles = [];
+        let GRID_SIZE = 1; // Size of each grid cell
+        let FEET_TO_UNITS = 1; // 1 foot = 1 unit in Three.js
+        let cellSize, wallHeight, wallThickness, roofHeight;
+        let roof;
+        let isFirstPerson = false;
+        let cameraDistance = 10;
 
-        function safeCall(func) {
-            try {
-                func();
-            } catch (error) {
-                logError('Error in ' + func.name + ': ' + error.message);
+        // Load 3D models
+        const loader = new THREE.GLTFLoader();
+
+        const furnitureModels = {
+            couch: null,
+            desk: null,
+            shelf: null,
+            // Add more furniture types as needed
+        };
+
+        // Load each model
+        Object.keys(furnitureModels).forEach(type => {
+            loader.load(`models/${type}.gltf`, (gltf) => {
+                furnitureModels[type] = gltf.scene;
+            });
+        });
+
+        // Function to place furniture
+        function placeFurniture(type, position) {
+            if (furnitureModels[type]) {
+                const furniture = furnitureModels[type].clone();
+                furniture.position.copy(position);
+                scene.add(furniture);
+                obstacles.push(furniture);
             }
-        }
-
-        function logError(message) {
-            console.error(message);
-            const errorLog = document.getElementById('error-log');
-            errorLog.textContent = message;
-            errorLog.style.display = 'block';
-            setTimeout(() => {
-                errorLog.style.display = 'none';
-            }, 5000);
         }
 
         function showHome() {
             document.getElementById('home').style.display = 'block';
             document.getElementById('grid-editor').style.display = 'none';
             document.getElementById('viewport').style.display = 'none';
+            document.getElementById('settings').style.display = 'none';
         }
 
         function show2DEditor() {
             document.getElementById('home').style.display = 'none';
             document.getElementById('grid-editor').style.display = 'block';
             document.getElementById('viewport').style.display = 'none';
+            document.getElementById('settings').style.display = 'none';
             createGrid();
+            createRoofGrid();
         }
 
         function show3DSimulator() {
             document.getElementById('home').style.display = 'none';
             document.getElementById('grid-editor').style.display = 'none';
             document.getElementById('viewport').style.display = 'block';
+            document.getElementById('settings').style.display = 'block';
             if (!scene) {
                 init3D();
+            } else {
+                importGrid();
             }
         }
 
         function setGridSize(size) {
             gridSize = size;
             createGrid();
+            createRoofGrid();
         }
 
         function setActiveItem(item) {
             activeItem = item;
+        }
+
+        function setRoofItem(item) {
+            activeRoofItem = item;
         }
 
         function createGrid() {
@@ -136,8 +178,21 @@
             for (let i = 0; i < gridSize * gridSize; i++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
-                cell.addEventListener('click', () => safeCall(() => toggleCell(cell)));
+                cell.addEventListener('click', () => toggleCell(cell));
                 grid.appendChild(cell);
+            }
+        }
+
+        function createRoofGrid() {
+            const roofGrid = document.getElementById('roof-grid');
+            roofGrid.innerHTML = '';
+            roofGrid.style.gridTemplateColumns = `repeat(${gridSize}, 50px)`;
+
+            for (let i = 0; i < gridSize * gridSize; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.addEventListener('click', () => toggleRoofCell(cell));
+                roofGrid.appendChild(cell);
             }
         }
 
@@ -145,34 +200,241 @@
             cell.className = 'cell ' + activeItem;
         }
 
+        function toggleRoofCell(cell) {
+            cell.className = 'cell ' + activeRoofItem;
+        }
+
         function saveGrid() {
             const grid = document.getElementById('grid');
+            const roofGrid = document.getElementById('roof-grid');
             const cells = grid.getElementsByClassName('cell');
+            const roofCells = roofGrid.getElementsByClassName('cell');
             const gridData = [];
+            const roofData = [];
 
             for (let i = 0; i < gridSize; i++) {
                 const row = [];
+                const roofRow = [];
                 for (let j = 0; j < gridSize; j++) {
                     const cell = cells[i * gridSize + j];
-                    if (cell.classList.contains('object')) {
-                        row.push('object');
-                    } else if (cell.classList.contains('box')) {
-                        row.push('box');
-                    } else if (cell.classList.contains('wall')) {
-                        row.push('wall');
-                    } else {
-                        row.push(null);
-                    }
+                    const roofCell = roofCells[i * gridSize + j];
+                    row.push(cell.className.split(' ')[1] || null);
+                    roofRow.push(roofCell.className.split(' ')[1] || null);
                 }
                 gridData.push(row);
+                roofData.push(roofRow);
             }
 
-            try {
-                localStorage.setItem('2dGridData', JSON.stringify(gridData));
-                alert('Grid saved successfully!');
-            } catch (error) {
-                logError('Error saving grid: ' + error.message);
+            localStorage.setItem('2dGridData', JSON.stringify(gridData));
+            localStorage.setItem('2dRoofData', JSON.stringify(roofData));
+            alert('Grid and roof data saved successfully!');
+        }
+
+        function createCharacter() {
+            const height = parseFloat(document.getElementById('character-height').value) * FEET_TO_UNITS;
+            const width = parseFloat(document.getElementById('character-width').value) * FEET_TO_UNITS;
+            const depth = parseFloat(document.getElementById('character-depth').value) * FEET_TO_UNITS;
+
+            character = new THREE.Group();
+
+            const bodyGeometry = new THREE.BoxGeometry(width, height * 0.5, depth);
+            const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.y = height * 0.25;
+            character.add(body);
+
+            const headGeometry = new THREE.SphereGeometry(width * 0.4, 32, 32);
+            const headMaterial = new THREE.MeshPhongMaterial({ color: 0xffcccc });
+            const head = new THREE.Mesh(headGeometry, headMaterial);
+            head.position.y = height * 0.5 + width * 0.4;
+            character.add(head);
+
+            const legGeometry = new THREE.BoxGeometry(width * 0.25, height * 0.45, depth * 0.25);
+            const legMaterial = new THREE.MeshPhongMaterial({ color: 0x0000ff });
+            const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
+            leftLeg.position.set(-width * 0.2, -height * 0.225, 0);
+            character.add(leftLeg);
+            const rightLeg = leftLeg.clone();
+            rightLeg.position.x = width * 0.2;
+            character.add(rightLeg);
+
+            const armGeometry = new THREE.BoxGeometry(width * 0.2, height * 0.4, depth * 0.2);
+            const armMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
+            const leftArm = new THREE.Mesh(armGeometry, armMaterial);
+            leftArm.position.set(-width * 0.6, height * 0.1, 0);
+            character.add(leftArm);
+            const rightArm = leftArm.clone();
+            rightArm.position.x = width * 0.6;
+            character.add(rightArm);
+
+            character.position.set(0, height * 0.5, 0);
+            scene.add(character);
+            return character;
+        }
+
+        function updateCharacterDimensions() {
+            scene.remove(character);
+            character = createCharacter();
+        }
+
+        function updateCharacterPosition() {
+            const moveSpeed = 0.1;
+            const rotateSpeed = 0.05;
+
+            if (rotateLeft) character.rotation.y += rotateSpeed;
+            if (rotateRight) character.rotation.y -= rotateSpeed;
+
+            const direction = new THREE.Vector3(0, 0, -1);
+            direction.applyQuaternion(character.quaternion);
+            direction.normalize();
+
+            const sideways = new THREE.Vector3(-1, 0, 0);
+            sideways.applyQuaternion(character.quaternion);
+            sideways.normalize();
+
+            const oldPosition = character.position.clone();
+
+            if (moveForward) character.position.addScaledVector(direction, moveSpeed);
+            if (moveBackward) character.position.addScaledVector(direction, -moveSpeed);
+            if (moveLeft) character.position.addScaledVector(sideways, moveSpeed);
+            if (moveRight) character.position.addScaledVector(sideways, -moveSpeed);
+
+            if (checkCollision()) {
+                character.position.copy(oldPosition);
             }
+
+            updateCameraPosition();
+        }
+
+        function updateCameraPosition() {
+            if (isFirstPerson) {
+                const headPosition = new THREE.Vector3(0, 1.6 * FEET_TO_UNITS, 0);
+                headPosition.applyQuaternion(character.quaternion);
+                camera.position.copy(character.position).add(headPosition);
+                
+                const lookAtPosition = new THREE.Vector3(0, 1.6 * FEET_TO_UNITS, -1);
+                lookAtPosition.applyQuaternion(character.quaternion);
+                lookAtPosition.add(camera.position);
+                camera.lookAt(lookAtPosition);
+            } else {
+                const offset = new THREE.Vector3(0, 5, cameraDistance);
+                offset.applyQuaternion(character.quaternion);
+                camera.position.copy(character.position).add(offset);
+                camera.lookAt(character.position);
+            }
+        }
+
+        function checkCollision() {
+            const halfGridSize = (gridSize * GRID_SIZE) / 2;
+            const characterX = character.position.x;
+            const characterZ = character.position.z;
+
+            // Check if the character is trying to walk off the grid
+            if (Math.abs(characterX) > halfGridSize || Math.abs(characterZ) > halfGridSize) {
+                return true;
+            }
+
+            const characterPosition = new THREE.Vector2(
+                Math.round(characterX / GRID_SIZE),
+                Math.round(characterZ / GRID_SIZE)
+            );
+
+            for (const obstacle of obstacles) {
+                const obstaclePosition = new THREE.Vector2(
+                    Math.round(obstacle.position.x / GRID_SIZE),
+                    Math.round(obstacle.position.z / GRID_SIZE)
+                );
+
+                if (characterPosition.equals(obstaclePosition)) {
+                    console.log('Collision detected!');
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function updateLayoutSettings() {
+            gridSize = parseInt(document.getElementById('grid-size').value);
+            cellSize = parseFloat(document.getElementById('cell-size').value);
+            wallHeight = parseFloat(document.getElementById('wall-height').value);
+            wallThickness = parseFloat(document.getElementById('wall-thickness').value);
+            roofHeight = parseFloat(document.getElementById('roof-height').value);
+            
+            GRID_SIZE = cellSize * FEET_TO_UNITS;
+            
+            importGrid();
+            updateRoof();
+        }
+
+        function updateRoof() {
+            if (roof) scene.remove(roof);
+            
+            const roofSize = gridSize * GRID_SIZE;
+            const roofGeometry = new THREE.BoxGeometry(roofSize, 0.1, roofSize);
+            const roofMaterial = new THREE.MeshBasicMaterial({ color: 0x8b4513, transparent: true, opacity: 0.5 });
+            roof = new THREE.Mesh(roofGeometry, roofMaterial);
+            roof.position.set(0, roofHeight * FEET_TO_UNITS, 0);
+            scene.add(roof);
+        }
+
+        function importGrid() {
+            const gridData = JSON.parse(localStorage.getItem('2dGridData'));
+            const roofData = JSON.parse(localStorage.getItem('2dRoofData'));
+            if (!gridData || !roofData) {
+                console.error('No grid or roof data found.');
+                return;
+            }
+
+            obstacles.forEach(obstacle => scene.remove(obstacle));
+            obstacles.length = 0;
+
+            gridSize = gridData.length;
+
+            const offset = (gridSize * GRID_SIZE) / 2 - GRID_SIZE / 2;
+
+            gridData.forEach((row, i) => {
+                row.forEach((cell, j) => {
+                    if (cell) {
+                        const position = new THREE.Vector3(
+                            j * GRID_SIZE - offset,
+                            0,
+                            i * GRID_SIZE - offset
+                        );
+                        if (cell === 'wall') {
+                            const wallGeometry = new THREE.BoxGeometry(GRID_SIZE, wallHeight * FEET_TO_UNITS, wallThickness * FEET_TO_UNITS);
+                            const wallMaterial = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
+                            const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+                            wall.position.copy(position);
+                            wall.position.y = wallHeight * FEET_TO_UNITS / 2;
+                            scene.add(wall);
+                            obstacles.push(wall);
+                        } else {
+                            placeFurniture(cell, position);
+                        }
+                    }
+                });
+            });
+
+            roofData.forEach((row, i) => {
+                row.forEach((cell, j) => {
+                    if (cell) {
+                        const position = new THREE.Vector3(
+                            j * GRID_SIZE - offset,
+                            roofHeight * FEET_TO_UNITS,
+                            i * GRID_SIZE - offset
+                        );
+                        placeFurniture(cell, position);
+                    }
+                });
+            });
+
+            if (gridHelper) scene.remove(gridHelper);
+            gridHelper = new THREE.GridHelper(gridSize * GRID_SIZE, gridSize);
+            scene.add(gridHelper);
+
+            updateRoof();
+
+            console.log('Grid and roof imported. Obstacle count:', obstacles.length);
         }
 
         function init3D() {
@@ -186,129 +448,21 @@
             light.position.set(0, 10, 0);
             scene.add(light);
 
-            camera.position.set(0, 5, 10);
-            camera.lookAt(0, 0, 0);
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            scene.add(ambientLight);
 
-            createUniversalGrid();
+            gridHelper = new THREE.GridHelper(gridSize * GRID_SIZE, gridSize);
+            scene.add(gridHelper);
+
             character = createCharacter();
+            importGrid();
+
+            updateCameraPosition();
             animate();
 
-            window.addEventListener('resize', onWindowResize, false);
-            document.addEventListener('keydown', onKeyDown, false);
-            document.addEventListener('keyup', onKeyUp, false);
-            renderer.domElement.addEventListener('mousedown', onMouseDown, false);
-            renderer.domElement.addEventListener('mousemove', onMouseMove, false);
-            renderer.domElement.addEventListener('mouseup', onMouseUp, false);
-        }
-
-        function createUniversalGrid() {
-            const size = 100;
-            const divisions = 100;
-            const gridHelper = new THREE.GridHelper(size, divisions);
-            scene.add(gridHelper);
-        }
-
-        function createCharacter() {
-            const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
-
-            // Create body parts
-            const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1, 0.3), bodyMaterial);
-            const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), bodyMaterial);
-            const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 0.2), bodyMaterial);
-            const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 0.2), bodyMaterial);
-            const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.8, 0.2), bodyMaterial);
-            const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.8, 0.2), bodyMaterial);
-
-            // Position body parts
-            head.position.set(0, 1.15, 0);
-            leftArm.position.set(-0.35, 0.4, 0);
-            rightArm.position.set(0.35, 0.4, 0);
-            leftLeg.position.set(-0.15, -0.9, 0);
-            rightLeg.position.set(0.15, -0.9, 0);
-
-            // Create a group to hold all parts
-            const character = new THREE.Group();
-            character.add(torso);
-            character.add(head);
-            character.add(leftArm);
-            character.add(rightArm);
-            character.add(leftLeg);
-            character.add(rightLeg);
-
-            character.position.set(0, 0.9, 0);
-            scene.add(character);
-
-            return character;
-        }
-
-        function updateCharacterDimensions() {
-            const width = parseFloat(document.getElementById('width').value);
-            const height = parseFloat(document.getElementById('height').value);
-            const depth = parseFloat(document.getElementById('depth').value);
-
-            // Update dimensions of body parts
-            character.children[0].scale.set(width / 0.5, height / 1.8, depth / 0.5); // Torso
-            character.children[1].scale.set(width / 0.5, height / 1.8, depth / 0.5); // Head
-            character.children[2].scale.set(width / 0.5, height / 1.8, depth / 0.5); // Left Arm
-            character.children[3].scale.set(width / 0.5, height / 1.8, depth / 0.5); // Right Arm
-            character.children[4].scale.set(width / 0.5, height / 1.8, depth / 0.5); // Left Leg
-            character.children[5].scale.set(width / 0.5, height / 1.8, depth / 0.5); // Right Leg
-
-            character.position.y = height / 2;
-        }
-
-        function updateCharacterPosition() {
-            velocity.x = 0;
-            velocity.z = 0;
-
-            const speed = 0.1;
-            if (moveForward) velocity.z -= speed;
-            if (moveBackward) velocity.z += speed;
-            if (moveLeft) velocity.x -= speed;
-            if (moveRight) velocity.x += speed;
-
-            const direction = new THREE.Vector3();
-            character.getWorldDirection(direction);
-            direction.y = 0;
-            direction.normalize();
-
-            const right = new THREE.Vector3();
-            right.crossVectors(direction, new THREE.Vector3(0, 1, 0)).normalize();
-
-            const newPosition = character.position.clone();
-            newPosition.addScaledVector(direction, velocity.z);
-            newPosition.addScaledVector(right, velocity.x);
-
-            if (!isColliding(newPosition)) {
-                character.position.copy(newPosition);
-            }
-        }
-
-        function isColliding(position) {
-            for (const obstacle of obstacles) {
-                const distance = obstacle.position.distanceTo(position);
-                if (distance < 0.5) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        function updateCameraPosition() {
-            const distance = 5;
-            const height = 2;
-            const x = character.position.x - distance * Math.sin(cameraYaw) * Math.cos(cameraPitch);
-            const z = character.position.z - distance * Math.cos(cameraYaw) * Math.cos(cameraPitch);
-            const y = character.position.y + height + distance * Math.sin(cameraPitch);
-
-            camera.position.set(x, y, z);
-            camera.lookAt(character.position);
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+            document.addEventListener('wheel', onMouseWheel);
         }
 
         function onKeyDown(event) {
@@ -317,10 +471,9 @@
                 case 'KeyS': moveBackward = true; break;
                 case 'KeyA': moveLeft = true; break;
                 case 'KeyD': moveRight = true; break;
-                case 'ArrowUp': cameraPitch = Math.min(cameraPitch + 0.1, Math.PI / 2 - 0.1); break;
-                case 'ArrowDown': cameraPitch = Math.max(cameraPitch - 0.1, -Math.PI / 2 + 0.1); break;
-                case 'ArrowLeft': cameraYaw += 0.1; character.rotation.y += 0.1; break;
-                case 'ArrowRight': cameraYaw -= 0.1; character.rotation.y -= 0.1; break;
+                case 'ArrowLeft': rotateLeft = true; break;
+                case 'ArrowRight': rotateRight = true; break;
+                case 'KeyV': toggleView(); break;
             }
         }
 
@@ -330,85 +483,47 @@
                 case 'KeyS': moveBackward = false; break;
                 case 'KeyA': moveLeft = false; break;
                 case 'KeyD': moveRight = false; break;
+                case 'ArrowLeft': rotateLeft = false; break;
+                case 'ArrowRight': rotateRight = false; break;
             }
         }
 
-        let isDragging = false;
-        let previousMousePosition = { x: 0, y: 0 };
-
-        function onMouseDown(event) {
-            isDragging = true;
-            previousMousePosition = {
-                x: event.clientX,
-                y: event.clientY
-            };
+        function onMouseWheel(event) {
+            if (!isFirstPerson) {
+                cameraDistance += event.deltaY * 0.01;
+                cameraDistance = Math.max(5, Math.min(20, cameraDistance));
+            }
         }
 
-        function onMouseMove(event) {
-            if (!isDragging) return;
-            const deltaMove = {
-                x: event.clientX - previousMousePosition.x,
-                y: event.clientY - previousMousePosition.y
-            };
-
-            cameraYaw -= deltaMove.x * 0.01;
-            cameraPitch += deltaMove.y * 0.01;
-            cameraPitch = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, cameraPitch));
-
-            previousMousePosition = {
-                x: event.clientX,
-                y: event.clientY
-            };
-        }
-
-        function onMouseUp(event) {
-            isDragging = false;
+        function toggleView() {
+            isFirstPerson = !isFirstPerson;
         }
 
         function animate() {
             requestAnimationFrame(animate);
             updateCharacterPosition();
-            updateCameraPosition();
             renderer.render(scene, camera);
         }
 
-        function importGrid() {
-            const gridData = JSON.parse(localStorage.getItem('2dGridData'));
-            if (!gridData) {
-                logError('No grid data found.');
-                return;
-            }
-
-            const gridGroup = new THREE.Group();
-            const cellSize = parseFloat(document.getElementById('obstacle-width').value);
-            const cellHeight = parseFloat(document.getElementById('obstacle-height').value);
-
-            gridData.forEach((row, i) => {
-                row.forEach((cell, j) => {
-                    if (cell) {
-                        let geometry, material;
-                        if (cell === 'object') {
-                            geometry = new THREE.BoxGeometry(cellSize, cellHeight, cellSize);
-                            material = new THREE.MeshBasicMaterial({ color: 0x007bff });
-                        } else if (cell === 'box') {
-                            geometry = new THREE.BoxGeometry(cellSize, cellHeight * 2, cellSize);
-                            material = new THREE.MeshBasicMaterial({ color: 0x28a745 });
-                        } else if (cell === 'wall') {
-                            geometry = new THREE.BoxGeometry(cellSize, cellHeight * 2, 0.5);
-                            material = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
-                        }
-                        const cube = new THREE.Mesh(geometry, material);
-                        cube.position.set(j * cellSize, 0, i * cellSize);
-                        gridGroup.add(cube);
-                        obstacles.push(cube);
-                    }
-                });
-            });
-
-            scene.add(gridGroup);
+        function exportScene() {
+            const exporter = new THREE.GLTFExporter();
+            exporter.parse(scene, function (gltf) {
+                const output = JSON.stringify(gltf, null, 2);
+                const blob = new Blob([output], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.href = url;
+                link.download = 'scene.gltf';
+                link.click();
+                
+                document.body.removeChild(link);
+            }, { binary: false });
         }
 
-        safeCall(showHome);
+        showHome(); // Start with the home screen
     </script>
 </body>
 </html>

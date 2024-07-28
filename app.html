@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced 3D Shape Simulator</title>
+    <title>3D House Layout Maker</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
     <style>
         body { margin: 0; font-family: Arial, sans-serif; }
         #app { display: flex; height: 100vh; }
@@ -14,11 +16,14 @@
         #controls { padding: 10px; background: #e0e0e0; }
         button { margin: 5px; padding: 5px 10px; }
         #grid-editor { display: none; }
-        #grid { display: grid; gap: 1px; background: #ccc; }
+        #grid, #roof-grid { display: grid; gap: 1px; background: #ccc; }
         .cell { width: 50px; height: 50px; background: #fff; }
-        .object { background: #007bff; }
-        .box { background: #28a745; }
+        .couch { background: #007bff; }
+        .desk { background: #28a745; }
+        .shelf { background: #ffc107; }
         .wall { background: #8b4513; }
+        .fan { background: #17a2b8; }
+        .light { background: #ffc107; }
         #settings { padding: 10px; background: #e0e0e0; }
         #settings input { margin: 5px; }
     </style>
@@ -33,7 +38,7 @@
         </div>
         <div id="content">
             <div id="home">
-                <h1>Welcome to 3D Shape Simulator</h1>
+                <h1>Welcome to 3D House Layout Maker</h1>
                 <p>Choose an option from the menu to get started.</p>
             </div>
             <div id="grid-editor" style="display:none;">
@@ -42,38 +47,86 @@
                     <button onclick="setGridSize(5)">5x5</button>
                     <button onclick="setGridSize(10)">10x10</button>
                     <button onclick="setGridSize(15)">15x15</button>
+                    <button onclick="setGridSize(20)">20x20</button>
                 </div>
                 <div>
                     <button onclick="setActiveItem('empty')">Empty</button>
-                    <button onclick="setActiveItem('object')">Object</button>
-                    <button onclick="setActiveItem('box')">Box</button>
+                    <button onclick="setActiveItem('couch')">Couch</button>
+                    <button onclick="setActiveItem('desk')">Desk</button>
+                    <button onclick="setActiveItem('shelf')">Shelf</button>
                     <button onclick="setActiveItem('wall')">Wall</button>
                 </div>
-                <div>
-                    <label>Wall Height: <input type="number" id="wall-height" value="2" min="1" max="10" step="0.1"></label>
-                    <label>Block Height: <input type="number" id="block-height" value="1" min="0.5" max="5" step="0.1"></label>
-                </div>
                 <div id="grid"></div>
+                <h3>Roof Editor</h3>
+                <div>
+                    <button onclick="setRoofItem('empty')">Empty</button>
+                    <button onclick="setRoofItem('fan')">Fan</button>
+                    <button onclick="setRoofItem('light')">Light</button>
+                </div>
+                <div id="roof-grid"></div>
                 <button onclick="saveGrid()">Save Grid</button>
             </div>
             <div id="viewport" style="display:none;"></div>
             <div id="settings" style="display:none;">
+                <h3>Layout Settings</h3>
+                <label>Grid Size (ft): <input type="number" id="grid-size" value="20" min="10" max="100" step="1"></label>
+                <label>Cell Size (ft): <input type="number" id="cell-size" value="1" min="0.5" max="5" step="0.1"></label>
+                <label>Wall Height (ft): <input type="number" id="wall-height" value="8" min="6" max="20" step="0.1"></label>
+                <label>Wall Thickness (ft): <input type="number" id="wall-thickness" value="0.5" min="0.1" max="2" step="0.1"></label>
+                <label>Roof Height (ft): <input type="number" id="roof-height" value="10" min="8" max="30" step="0.1"></label>
+                <button onclick="updateLayoutSettings()">Update Layout</button>
+                
                 <h3>Character Settings</h3>
-                <label>Height: <input type="number" id="character-height" value="1.8" min="0.5" max="3" step="0.1"></label>
-                <label>Width: <input type="number" id="character-width" value="0.5" min="0.1" max="1" step="0.1"></label>
-                <label>Depth: <input type="number" id="character-depth" value="0.3" min="0.1" max="1" step="0.1"></label>
+                <label>Height (ft): <input type="number" id="character-height" value="5.9" min="3" max="8" step="0.1"></label>
+                <label>Width (ft): <input type="number" id="character-width" value="1.5" min="1" max="3" step="0.1"></label>
+                <label>Depth (ft): <input type="number" id="character-depth" value="1" min="0.5" max="2" step="0.1"></label>
                 <button onclick="updateCharacterDimensions()">Update Character</button>
+                
+                <button onclick="exportScene()">Export 3D Scene</button>
             </div>
         </div>
     </div>
     <script>
-        let scene, camera, renderer, character;
+        let scene, camera, renderer, character, gridHelper;
         let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
         let rotateLeft = false, rotateRight = false;
         let gridSize = 10;
         let activeItem = 'empty';
+        let activeRoofItem = 'empty';
         const obstacles = [];
-        const GRID_SIZE = 1; // Size of each grid cell
+        let GRID_SIZE = 1; // Size of each grid cell
+        let FEET_TO_UNITS = 1; // 1 foot = 1 unit in Three.js
+        let cellSize, wallHeight, wallThickness, roofHeight;
+        let roof;
+        let isFirstPerson = false;
+        let cameraDistance = 10;
+
+        // Load 3D models
+        const loader = new THREE.GLTFLoader();
+
+        const furnitureModels = {
+            couch: null,
+            desk: null,
+            shelf: null,
+            // Add more furniture types as needed
+        };
+
+        // Load each model
+        Object.keys(furnitureModels).forEach(type => {
+            loader.load(`models/${type}.gltf`, (gltf) => {
+                furnitureModels[type] = gltf.scene;
+            });
+        });
+
+        // Function to place furniture
+        function placeFurniture(type, position) {
+            if (furnitureModels[type]) {
+                const furniture = furnitureModels[type].clone();
+                furniture.position.copy(position);
+                scene.add(furniture);
+                obstacles.push(furniture);
+            }
+        }
 
         function showHome() {
             document.getElementById('home').style.display = 'block';
@@ -88,6 +141,7 @@
             document.getElementById('viewport').style.display = 'none';
             document.getElementById('settings').style.display = 'none';
             createGrid();
+            createRoofGrid();
         }
 
         function show3DSimulator() {
@@ -105,10 +159,15 @@
         function setGridSize(size) {
             gridSize = size;
             createGrid();
+            createRoofGrid();
         }
 
         function setActiveItem(item) {
             activeItem = item;
+        }
+
+        function setRoofItem(item) {
+            activeRoofItem = item;
         }
 
         function createGrid() {
@@ -124,59 +183,72 @@
             }
         }
 
+        function createRoofGrid() {
+            const roofGrid = document.getElementById('roof-grid');
+            roofGrid.innerHTML = '';
+            roofGrid.style.gridTemplateColumns = `repeat(${gridSize}, 50px)`;
+
+            for (let i = 0; i < gridSize * gridSize; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.addEventListener('click', () => toggleRoofCell(cell));
+                roofGrid.appendChild(cell);
+            }
+        }
+
         function toggleCell(cell) {
             cell.className = 'cell ' + activeItem;
         }
 
+        function toggleRoofCell(cell) {
+            cell.className = 'cell ' + activeRoofItem;
+        }
+
         function saveGrid() {
             const grid = document.getElementById('grid');
+            const roofGrid = document.getElementById('roof-grid');
             const cells = grid.getElementsByClassName('cell');
+            const roofCells = roofGrid.getElementsByClassName('cell');
             const gridData = [];
+            const roofData = [];
 
             for (let i = 0; i < gridSize; i++) {
                 const row = [];
+                const roofRow = [];
                 for (let j = 0; j < gridSize; j++) {
                     const cell = cells[i * gridSize + j];
-                    if (cell.classList.contains('object')) {
-                        row.push('object');
-                    } else if (cell.classList.contains('box')) {
-                        row.push('box');
-                    } else if (cell.classList.contains('wall')) {
-                        row.push('wall');
-                    } else {
-                        row.push(null);
-                    }
+                    const roofCell = roofCells[i * gridSize + j];
+                    row.push(cell.className.split(' ')[1] || null);
+                    roofRow.push(roofCell.className.split(' ')[1] || null);
                 }
                 gridData.push(row);
+                roofData.push(roofRow);
             }
 
             localStorage.setItem('2dGridData', JSON.stringify(gridData));
-            alert('Grid saved successfully!');
+            localStorage.setItem('2dRoofData', JSON.stringify(roofData));
+            alert('Grid and roof data saved successfully!');
         }
 
         function createCharacter() {
-            const height = parseFloat(document.getElementById('character-height').value);
-            const width = parseFloat(document.getElementById('character-width').value);
-            const depth = parseFloat(document.getElementById('character-depth').value);
+            const height = parseFloat(document.getElementById('character-height').value) * FEET_TO_UNITS;
+            const width = parseFloat(document.getElementById('character-width').value) * FEET_TO_UNITS;
+            const depth = parseFloat(document.getElementById('character-depth').value) * FEET_TO_UNITS;
 
-            // Create a group to hold all parts of the character
             character = new THREE.Group();
 
-            // Body
             const bodyGeometry = new THREE.BoxGeometry(width, height * 0.5, depth);
             const bodyMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
             const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
             body.position.y = height * 0.25;
             character.add(body);
 
-            // Head
             const headGeometry = new THREE.SphereGeometry(width * 0.4, 32, 32);
             const headMaterial = new THREE.MeshPhongMaterial({ color: 0xffcccc });
             const head = new THREE.Mesh(headGeometry, headMaterial);
             head.position.y = height * 0.5 + width * 0.4;
             character.add(head);
 
-            // Legs
             const legGeometry = new THREE.BoxGeometry(width * 0.25, height * 0.45, depth * 0.25);
             const legMaterial = new THREE.MeshPhongMaterial({ color: 0x0000ff });
             const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
@@ -186,7 +258,6 @@
             rightLeg.position.x = width * 0.2;
             character.add(rightLeg);
 
-            // Arms
             const armGeometry = new THREE.BoxGeometry(width * 0.2, height * 0.4, depth * 0.2);
             const armMaterial = new THREE.MeshPhongMaterial({ color: 0xff0000 });
             const leftArm = new THREE.Mesh(armGeometry, armMaterial);
@@ -236,16 +307,36 @@
         }
 
         function updateCameraPosition() {
-            const offset = new THREE.Vector3(0, 5, 10);
-            offset.applyQuaternion(character.quaternion);
-            camera.position.copy(character.position).add(offset);
-            camera.lookAt(character.position);
+            if (isFirstPerson) {
+                const headPosition = new THREE.Vector3(0, 1.6 * FEET_TO_UNITS, 0);
+                headPosition.applyQuaternion(character.quaternion);
+                camera.position.copy(character.position).add(headPosition);
+                
+                const lookAtPosition = new THREE.Vector3(0, 1.6 * FEET_TO_UNITS, -1);
+                lookAtPosition.applyQuaternion(character.quaternion);
+                lookAtPosition.add(camera.position);
+                camera.lookAt(lookAtPosition);
+            } else {
+                const offset = new THREE.Vector3(0, 5, cameraDistance);
+                offset.applyQuaternion(character.quaternion);
+                camera.position.copy(character.position).add(offset);
+                camera.lookAt(character.position);
+            }
         }
 
         function checkCollision() {
+            const halfGridSize = (gridSize * GRID_SIZE) / 2;
+            const characterX = character.position.x;
+            const characterZ = character.position.z;
+
+            // Check if the character is trying to walk off the grid
+            if (Math.abs(characterX) > halfGridSize || Math.abs(characterZ) > halfGridSize) {
+                return true;
+            }
+
             const characterPosition = new THREE.Vector2(
-                Math.round(character.position.x / GRID_SIZE),
-                Math.round(character.position.z / GRID_SIZE)
+                Math.round(characterX / GRID_SIZE),
+                Math.round(characterZ / GRID_SIZE)
             );
 
             for (const obstacle of obstacles) {
@@ -262,43 +353,88 @@
             return false;
         }
 
+        function updateLayoutSettings() {
+            gridSize = parseInt(document.getElementById('grid-size').value);
+            cellSize = parseFloat(document.getElementById('cell-size').value);
+            wallHeight = parseFloat(document.getElementById('wall-height').value);
+            wallThickness = parseFloat(document.getElementById('wall-thickness').value);
+            roofHeight = parseFloat(document.getElementById('roof-height').value);
+            
+            GRID_SIZE = cellSize * FEET_TO_UNITS;
+            
+            importGrid();
+            updateRoof();
+        }
+
+        function updateRoof() {
+            if (roof) scene.remove(roof);
+            
+            const roofSize = gridSize * GRID_SIZE;
+            const roofGeometry = new THREE.BoxGeometry(roofSize, 0.1, roofSize);
+            const roofMaterial = new THREE.MeshBasicMaterial({ color: 0x8b4513, transparent: true, opacity: 0.5 });
+            roof = new THREE.Mesh(roofGeometry, roofMaterial);
+            roof.position.set(0, roofHeight * FEET_TO_UNITS, 0);
+            scene.add(roof);
+        }
+
         function importGrid() {
             const gridData = JSON.parse(localStorage.getItem('2dGridData'));
-            if (!gridData) {
-                console.error('No grid data found.');
+            const roofData = JSON.parse(localStorage.getItem('2dRoofData'));
+            if (!gridData || !roofData) {
+                console.error('No grid or roof data found.');
                 return;
             }
 
-            // Clear existing obstacles
             obstacles.forEach(obstacle => scene.remove(obstacle));
             obstacles.length = 0;
 
-            const wallHeight = parseFloat(document.getElementById('wall-height').value);
-            const blockHeight = parseFloat(document.getElementById('block-height').value);
+            gridSize = gridData.length;
+
+            const offset = (gridSize * GRID_SIZE) / 2 - GRID_SIZE / 2;
 
             gridData.forEach((row, i) => {
                 row.forEach((cell, j) => {
                     if (cell) {
-                        let geometry, material;
-                        if (cell === 'object') {
-                            geometry = new THREE.BoxGeometry(GRID_SIZE, blockHeight, GRID_SIZE);
-                            material = new THREE.MeshBasicMaterial({ color: 0x007bff });
-                        } else if (cell === 'box') {
-                            geometry = new THREE.BoxGeometry(GRID_SIZE, blockHeight * 2, GRID_SIZE);
-                            material = new THREE.MeshBasicMaterial({ color: 0x28a745 });
-                        } else if (cell === 'wall') {
-                            geometry = new THREE.BoxGeometry(GRID_SIZE, wallHeight, GRID_SIZE * 0.1);
-                            material = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
+                        const position = new THREE.Vector3(
+                            j * GRID_SIZE - offset,
+                            0,
+                            i * GRID_SIZE - offset
+                        );
+                        if (cell === 'wall') {
+                            const wallGeometry = new THREE.BoxGeometry(GRID_SIZE, wallHeight * FEET_TO_UNITS, wallThickness * FEET_TO_UNITS);
+                            const wallMaterial = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
+                            const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+                            wall.position.copy(position);
+                            wall.position.y = wallHeight * FEET_TO_UNITS / 2;
+                            scene.add(wall);
+                            obstacles.push(wall);
+                        } else {
+                            placeFurniture(cell, position);
                         }
-                        const cube = new THREE.Mesh(geometry, material);
-                        cube.position.set(j * GRID_SIZE - (gridSize * GRID_SIZE) / 2, geometry.parameters.height / 2, i * GRID_SIZE - (gridSize * GRID_SIZE) / 2);
-                        scene.add(cube);
-                        obstacles.push(cube);
                     }
                 });
             });
 
-            console.log('Grid imported. Obstacle count:', obstacles.length);
+            roofData.forEach((row, i) => {
+                row.forEach((cell, j) => {
+                    if (cell) {
+                        const position = new THREE.Vector3(
+                            j * GRID_SIZE - offset,
+                            roofHeight * FEET_TO_UNITS,
+                            i * GRID_SIZE - offset
+                        );
+                        placeFurniture(cell, position);
+                    }
+                });
+            });
+
+            if (gridHelper) scene.remove(gridHelper);
+            gridHelper = new THREE.GridHelper(gridSize * GRID_SIZE, gridSize);
+            scene.add(gridHelper);
+
+            updateRoof();
+
+            console.log('Grid and roof imported. Obstacle count:', obstacles.length);
         }
 
         function init3D() {
@@ -312,13 +448,10 @@
             light.position.set(0, 10, 0);
             scene.add(light);
 
-            // Add ambient light
             const ambientLight = new THREE.AmbientLight(0x404040);
             scene.add(ambientLight);
 
-            // Add grid helper
-            const gridHelper = new THREE.GridHelper(gridSize * GRID_SIZE, gridSize);
-            gridHelper.position.set(0, 0, 0);
+            gridHelper = new THREE.GridHelper(gridSize * GRID_SIZE, gridSize);
             scene.add(gridHelper);
 
             character = createCharacter();
@@ -329,6 +462,7 @@
 
             document.addEventListener('keydown', onKeyDown);
             document.addEventListener('keyup', onKeyUp);
+            document.addEventListener('wheel', onMouseWheel);
         }
 
         function onKeyDown(event) {
@@ -339,6 +473,7 @@
                 case 'KeyD': moveRight = true; break;
                 case 'ArrowLeft': rotateLeft = true; break;
                 case 'ArrowRight': rotateRight = true; break;
+                case 'KeyV': toggleView(); break;
             }
         }
 
@@ -353,10 +488,39 @@
             }
         }
 
+        function onMouseWheel(event) {
+            if (!isFirstPerson) {
+                cameraDistance += event.deltaY * 0.01;
+                cameraDistance = Math.max(5, Math.min(20, cameraDistance));
+            }
+        }
+
+        function toggleView() {
+            isFirstPerson = !isFirstPerson;
+        }
+
         function animate() {
             requestAnimationFrame(animate);
             updateCharacterPosition();
             renderer.render(scene, camera);
+        }
+
+        function exportScene() {
+            const exporter = new THREE.GLTFExporter();
+            exporter.parse(scene, function (gltf) {
+                const output = JSON.stringify(gltf, null, 2);
+                const blob = new Blob([output], {type: 'application/json'});
+                const url = URL.createObjectURL(blob);
+                
+                const link = document.createElement('a');
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.href = url;
+                link.download = 'scene.gltf';
+                link.click();
+                
+                document.body.removeChild(link);
+            }, { binary: false });
         }
 
         showHome(); // Start with the home screen
