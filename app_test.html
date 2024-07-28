@@ -101,135 +101,6 @@
         let isFirstPerson = false;
         let cameraDistance = 10;
 
-        // Load 3D models
-        const loader = new THREE.GLTFLoader();
-
-        const furnitureModels = {
-            couch: null,
-            desk: null,
-            shelf: null,
-            // Add more furniture types as needed
-        };
-
-        // Load each model
-        Object.keys(furnitureModels).forEach(type => {
-            loader.load(`models/${type}.gltf`, (gltf) => {
-                furnitureModels[type] = gltf.scene;
-            });
-        });
-
-        // Function to place furniture
-        function placeFurniture(type, position) {
-            if (furnitureModels[type]) {
-                const furniture = furnitureModels[type].clone();
-                furniture.position.copy(position);
-                scene.add(furniture);
-                obstacles.push(furniture);
-            }
-        }
-
-        function showHome() {
-            document.getElementById('home').style.display = 'block';
-            document.getElementById('grid-editor').style.display = 'none';
-            document.getElementById('viewport').style.display = 'none';
-            document.getElementById('settings').style.display = 'none';
-        }
-
-        function show2DEditor() {
-            document.getElementById('home').style.display = 'none';
-            document.getElementById('grid-editor').style.display = 'block';
-            document.getElementById('viewport').style.display = 'none';
-            document.getElementById('settings').style.display = 'none';
-            createGrid();
-            createRoofGrid();
-        }
-
-        function show3DSimulator() {
-            document.getElementById('home').style.display = 'none';
-            document.getElementById('grid-editor').style.display = 'none';
-            document.getElementById('viewport').style.display = 'block';
-            document.getElementById('settings').style.display = 'block';
-            if (!scene) {
-                init3D();
-            } else {
-                importGrid();
-            }
-        }
-
-        function setGridSize(size) {
-            gridSize = size;
-            createGrid();
-            createRoofGrid();
-        }
-
-        function setActiveItem(item) {
-            activeItem = item;
-        }
-
-        function setRoofItem(item) {
-            activeRoofItem = item;
-        }
-
-        function createGrid() {
-            const grid = document.getElementById('grid');
-            grid.innerHTML = '';
-            grid.style.gridTemplateColumns = `repeat(${gridSize}, 50px)`;
-
-            for (let i = 0; i < gridSize * gridSize; i++) {
-                const cell = document.createElement('div');
-                cell.className = 'cell';
-                cell.addEventListener('click', () => toggleCell(cell));
-                grid.appendChild(cell);
-            }
-        }
-
-        function createRoofGrid() {
-            const roofGrid = document.getElementById('roof-grid');
-            roofGrid.innerHTML = '';
-            roofGrid.style.gridTemplateColumns = `repeat(${gridSize}, 50px)`;
-
-            for (let i = 0; i < gridSize * gridSize; i++) {
-                const cell = document.createElement('div');
-                cell.className = 'cell';
-                cell.addEventListener('click', () => toggleRoofCell(cell));
-                roofGrid.appendChild(cell);
-            }
-        }
-
-        function toggleCell(cell) {
-            cell.className = 'cell ' + activeItem;
-        }
-
-        function toggleRoofCell(cell) {
-            cell.className = 'cell ' + activeRoofItem;
-        }
-
-        function saveGrid() {
-            const grid = document.getElementById('grid');
-            const roofGrid = document.getElementById('roof-grid');
-            const cells = grid.getElementsByClassName('cell');
-            const roofCells = roofGrid.getElementsByClassName('cell');
-            const gridData = [];
-            const roofData = [];
-
-            for (let i = 0; i < gridSize; i++) {
-                const row = [];
-                const roofRow = [];
-                for (let j = 0; j < gridSize; j++) {
-                    const cell = cells[i * gridSize + j];
-                    const roofCell = roofCells[i * gridSize + j];
-                    row.push(cell.className.split(' ')[1] || null);
-                    roofRow.push(roofCell.className.split(' ')[1] || null);
-                }
-                gridData.push(row);
-                roofData.push(roofRow);
-            }
-
-            localStorage.setItem('2dGridData', JSON.stringify(gridData));
-            localStorage.setItem('2dRoofData', JSON.stringify(roofData));
-            alert('Grid and roof data saved successfully!');
-        }
-
         function createCharacter() {
             const height = parseFloat(document.getElementById('character-height').value) * FEET_TO_UNITS;
             const width = parseFloat(document.getElementById('character-width').value) * FEET_TO_UNITS;
@@ -278,7 +149,7 @@
         }
 
         function updateCharacterPosition() {
-            const moveSpeed = 0.1;
+            const moveSpeed = 0.1 * GRID_SIZE;
             const rotateSpeed = 0.05;
 
             if (rotateLeft) character.rotation.y += rotateSpeed;
@@ -377,6 +248,43 @@
             scene.add(roof);
         }
 
+        function createFurniture(type, position) {
+            let geometry, material, furniture;
+            switch (type) {
+                case 'couch':
+                    geometry = new THREE.BoxGeometry(GRID_SIZE * 2, GRID_SIZE * 0.5, GRID_SIZE);
+                    material = new THREE.MeshPhongMaterial({ color: 0x0000ff });
+                    break;
+                case 'desk':
+                    geometry = new THREE.BoxGeometry(GRID_SIZE * 1.5, GRID_SIZE * 0.4, GRID_SIZE);
+                    material = new THREE.MeshPhongMaterial({ color: 0x00ff00 });
+                    break;
+                case 'shelf':
+                    geometry = new THREE.BoxGeometry(GRID_SIZE, GRID_SIZE * 1.5, GRID_SIZE * 0.3);
+                    material = new THREE.MeshPhongMaterial({ color: 0xffff00 });
+                    break;
+                case 'fan':
+                    geometry = new THREE.CylinderGeometry(GRID_SIZE * 0.5, GRID_SIZE * 0.5, GRID_SIZE * 0.1, 32);
+                    material = new THREE.MeshPhongMaterial({ color: 0x00ffff });
+                    break;
+                case 'light':
+                    geometry = new THREE.SphereGeometry(GRID_SIZE * 0.3, 32, 32);
+                    material = new THREE.MeshPhongMaterial({ color: 0xffff00, emissive: 0xffff00 });
+                    break;
+                default:
+                    return null;
+            }
+            furniture = new THREE.Mesh(geometry, material);
+            furniture.position.copy(position);
+            if (type === 'fan' || type === 'light') {
+                furniture.position.y -= GRID_SIZE * 0.05; // Adjust slightly to be just below the roof
+            } else {
+                furniture.position.y += geometry.parameters.height / 2;
+            }
+            scene.add(furniture);
+            return furniture;
+        }
+
         function importGrid() {
             const gridData = JSON.parse(localStorage.getItem('2dGridData'));
             const roofData = JSON.parse(localStorage.getItem('2dRoofData'));
@@ -394,7 +302,7 @@
 
             gridData.forEach((row, i) => {
                 row.forEach((cell, j) => {
-                    if (cell) {
+                    if (cell && cell !== 'empty') {
                         const position = new THREE.Vector3(
                             j * GRID_SIZE - offset,
                             0,
@@ -402,14 +310,15 @@
                         );
                         if (cell === 'wall') {
                             const wallGeometry = new THREE.BoxGeometry(GRID_SIZE, wallHeight * FEET_TO_UNITS, wallThickness * FEET_TO_UNITS);
-                            const wallMaterial = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
+                            const wallMaterial = new THREE.MeshPhongMaterial({ color: 0x8b4513 });
                             const wall = new THREE.Mesh(wallGeometry, wallMaterial);
                             wall.position.copy(position);
                             wall.position.y = wallHeight * FEET_TO_UNITS / 2;
                             scene.add(wall);
                             obstacles.push(wall);
                         } else {
-                            placeFurniture(cell, position);
+                            const furniture = createFurniture(cell, position);
+                            if (furniture) obstacles.push(furniture);
                         }
                     }
                 });
@@ -417,13 +326,14 @@
 
             roofData.forEach((row, i) => {
                 row.forEach((cell, j) => {
-                    if (cell) {
+                    if (cell && cell !== 'empty') {
                         const position = new THREE.Vector3(
                             j * GRID_SIZE - offset,
                             roofHeight * FEET_TO_UNITS,
                             i * GRID_SIZE - offset
                         );
-                        placeFurniture(cell, position);
+                        const furniture = createFurniture(cell, position);
+                        if (furniture) obstacles.push(furniture);
                     }
                 });
             });
