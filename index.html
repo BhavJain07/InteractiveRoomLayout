@@ -520,7 +520,40 @@
                 link.click();
                 
                 document.body.removeChild(link);
+
+                // Create and show the popup
+                showExportPopup();
             }, { binary: false });
+        }
+
+        function showExportPopup() {
+            const popup = document.createElement('div');
+            popup.style.position = 'fixed';
+            popup.style.left = '50%';
+            popup.style.top = '50%';
+            popup.style.transform = 'translate(-50%, -50%)';
+            popup.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+            popup.style.color = 'white';
+            popup.style.padding = '20px';
+            popup.style.borderRadius = '10px';
+            popup.style.zIndex = '1000';
+            popup.style.textAlign = 'center';
+
+            popup.innerHTML = `
+                <h3>3D Scene Exported!</h3>
+                <p>To view your scene, go to:</p>
+                <a href="https://gltf-viewer.donmccurdy.com/" target="_blank" style="color: #00ff00;">
+                    https://gltf-viewer.donmccurdy.com/
+                </a>
+                <p>Drag and drop your exported file into the browser window to view it.</p>
+            `;
+
+            document.body.appendChild(popup);
+
+            // Remove the popup after 5 seconds
+            setTimeout(() => {
+                document.body.removeChild(popup);
+            }, 5000);
         }
 
         showHome(); // Start with the home screen
