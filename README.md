@@ -16,11 +16,12 @@ This project is a 3D grid editor and simulator that allows users to create custo
 3. Run the project on a local server to see the editor and simulator in action.
 
 ## Usage
-1. Open the `app.html` file in a web browser to access the 2D grid editor.
+1. Open the `index.html` file in a web browser to access the 2D grid editor.
 2. Adjust grid parameters, place obstacles, and save the grid configuration.
 3. Switch to the 3D simulator by clicking on the appropriate button.
 4. Use the settings panel to adjust character dimensions and simulate movement.
 5. Interact with the character using WASD keys for movement and arrow keys for rotation.
+6. Use this website `https://gltf-viewer.donmccurdy.com/` to render the exports of the 3D simulator, as the exports are in gltf format.
 
 ## Dependencies
 - Three.js library for 3D rendering.
