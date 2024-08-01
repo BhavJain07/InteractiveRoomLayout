@@ -193,27 +193,46 @@
 
         // Update the placeFurniture function
         function placeFurniture(type, position) {
-            if (furnitureModels[type]) {
-                const furniture = furnitureModels[type].clone();
-                furniture.position.copy(position);
-                
-                // Adjust position for different furniture types
-                if (type === 'couch') {
-                    furniture.position.y = 0.5 * FEET_TO_UNITS;
-                } else if (type === 'desk') {
-                    furniture.position.y = 0.75 * FEET_TO_UNITS;
-                } else if (type === 'shelf') {
-                    furniture.position.y = 1 * FEET_TO_UNITS;
-                } else if (type === 'fan' || type === 'light') {
-                    furniture.position.y = roofHeight * FEET_TO_UNITS - furniture.scale.y / 2;
-                }
-
-                scene.add(furniture);
-                obstacles.push(furniture);
-                console.log(`Placed ${type} at`, position);
-            } else {
-                console.warn(`Model for ${type} not loaded`);
+            let geometry, material, furniture;
+            
+            switch(type) {
+                case 'couch':
+                    geometry = new THREE.BoxGeometry(2 * GRID_SIZE, 1 * GRID_SIZE, 1 * GRID_SIZE);
+                    material = new THREE.MeshBasicMaterial({ color: 0x0000FF });
+                    break;
+                case 'desk':
+                    geometry = new THREE.BoxGeometry(1.5 * GRID_SIZE, 0.75 * GRID_SIZE, 1 * GRID_SIZE);
+                    material = new THREE.MeshBasicMaterial({ color: 0x00FF00 });
+                    break;
+                case 'shelf':
+                    geometry = new THREE.BoxGeometry(1 * GRID_SIZE, 2 * GRID_SIZE, 0.5 * GRID_SIZE);
+                    material = new THREE.MeshBasicMaterial({ color: 0xFFFF00 });
+                    break;
+                case 'fan':
+                    geometry = new THREE.CylinderGeometry(0.5 * GRID_SIZE, 0.5 * GRID_SIZE, 0.2 * GRID_SIZE, 32);
+                    material = new THREE.MeshBasicMaterial({ color: 0x00FFFF });
+                    break;
+                case 'light':
+                    geometry = new THREE.SphereGeometry(0.3 * GRID_SIZE, 32, 32);
+                    material = new THREE.MeshBasicMaterial({ color: 0xFFFF00 });
+                    break;
+                default:
+                    console.warn(`Unknown furniture type: ${type}`);
+                    return;
             }
+            
+            furniture = new THREE.Mesh(geometry, material);
+            furniture.position.copy(position);
+            
+            if (type === 'couch' || type === 'desk' || type === 'shelf') {
+                furniture.position.y += geometry.parameters.height / 2;
+            } else if (type === 'fan' || type === 'light') {
+                furniture.position.y = roofHeight * FEET_TO_UNITS - geometry.parameters.height / 2;
+            }
+            
+            scene.add(furniture);
+            obstacles.push(furniture);
+            console.log(`Placed ${type} at`, furniture.position);
         }
 
         function showHome() {
