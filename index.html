@@ -8,22 +8,189 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
     <style>
-        body { margin: 0; font-family: Arial, sans-serif; }
-        #app { display: flex; height: 100vh; }
-        #menu { width: 200px; padding: 20px; background: #f0f0f0; }
-        #content { flex-grow: 1; display: flex; flex-direction: column; }
-        #viewport { flex-grow: 1; }
-        #controls { padding: 10px; background: #e0e0e0; }
-        button { margin: 5px; padding: 5px 10px; }
-        #grid-editor { display: none; }
-        #grid, #roof-grid { display: grid; gap: 1px; background: #ccc; }
-        .cell { width: 50px; height: 50px; background: #fff; }
-        .couch { background: #007bff; }
-        .desk { background: #28a745; }
-        .shelf { background: #ffc107; }
-        .wall { background: #8b4513; }
-        .fan { background: #17a2b8; }
-        .light { background: #ffc107; }
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        #app {
+            display: flex;
+            height: 100vh;
+        }
+        #menu {
+            width: 250px;
+            padding: 20px;
+            background: #2c3e50;
+            color: #ecf0f1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #menu h2 {
+            margin-bottom: 20px;
+        }
+        #menu button {
+            width: 100%;
+            margin: 10px 0;
+            padding: 10px;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        #menu button:hover {
+            background: #2980b9;
+        }
+        #content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #home, #grid-editor, #viewport, #settings {
+            display: none;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        #home {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        #home h1 {
+            font-size: 2em;
+            margin-bottom: 20px;
+        }
+        #grid-editor {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #grid-editor .controls {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        #grid-editor .controls button {
+            margin: 5px;
+            padding: 10px;
+            background: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        #grid-editor .controls button:hover {
+            background: #2980b9;
+        }
+
+        #grid {
+            display: grid;
+            gap: 1px;
+            background: #ccc;
+            width: 100%;
+            height: calc(100% - 150px); /* Adjust height to fit within the screen */
+            max-width: 100%;
+            max-height: 100%;
+            overflow: auto;
+            box-sizing: border-box;
+        }
+
+        #roof-grid {
+            display: grid;
+            gap: 1px;
+            background: #ccc;
+            width: 100%;
+            height: calc(100% - 150px); /* Adjust height to fit within the screen */
+            max-width: 100%;
+            max-height: 100%;
+            overflow: auto;
+            box-sizing: border-box;
+        }
+
+        .cell {
+            background: #fff;
+            box-sizing: border-box;
+        }
+
+        .couch {
+            background: #007bff;
+        }
+
+        .desk {
+            background: #28a745;
+        }
+
+        .shelf {
+            background: #ffc107;
+        }
+
+        .wall {
+            background: #8b4513;
+        }
+
+        .fan {
+            background: #17a2b8;
+        }
+
+        .light {
+            background: #ffc107;
+        }
+
+        #save-grid-button {
+            margin-top: 20px;
+            padding: 15px 30px;
+            background: #e74c3c;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.2em;
+            transition: background 0.3s;
+        }
+
+        #save-grid-button:hover {
+            background: #c0392b;
+        }
+        #viewport {
+            flex-grow: 1;
+            background: #fff;
+            position: relative;
+        }
+        #settings {
+            background: #ecf0f1;
+            padding: 20px;
+            border-top: 1px solid #bdc3c7;
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 300px;
+            overflow-y: auto;
+        }
+        #settings h3 {
+            margin-top: 0;
+        }
+        #settings input {
+            margin: 5px 0;
+            padding: 5px;
+            width: 100%;
+            box-sizing: border-box;
+        }
         .usage-guide {
             padding: 20px;
             background-color: #f9f9f9; /* Light background for contrast */
@@ -34,16 +201,12 @@
             overflow-y: auto; /* Allow scrolling if content overflows */
             height: 80vh; /* Set a height to fit within the viewport */
         }
-
         .usage-guide h2, .usage-guide h3 {
             color: #333; /* Darker text for headings */
         }
-
         .usage-guide ul {
             margin-left: 20px; /* Indent list items */
         }
-        #settings { padding: 10px; background: #e0e0e0; }
-        #settings input { margin: 5px; }
     </style>
 </head>
 <body>
@@ -111,14 +274,15 @@
                 </div>
             </div>
             <div id="grid-editor" style="display:none;">
-                <h2>2D Grid Editor</h2>
-                <div>
+                <h2>2D Grid Editor  </h2>
+                <div class="controls">
+                    <button id="save-grid-button" onclick="saveGrid()">Save Grid</button>
                     <button onclick="setGridSize(5)">5x5</button>
                     <button onclick="setGridSize(10)">10x10</button>
                     <button onclick="setGridSize(15)">15x15</button>
                     <button onclick="setGridSize(20)">20x20</button>
                 </div>
-                <div>
+                <div class="controls">
                     <button onclick="setActiveItem('empty')">Empty</button>
                     <button onclick="setActiveItem('couch')">Couch</button>
                     <button onclick="setActiveItem('desk')">Desk</button>
@@ -127,13 +291,13 @@
                 </div>
                 <div id="grid"></div>
                 <h3>Roof Editor</h3>
-                <div>
+                <div class="controls">
                     <button onclick="setRoofItem('empty')">Empty</button>
                     <button onclick="setRoofItem('fan')">Fan</button>
                     <button onclick="setRoofItem('light')">Light</button>
                 </div>
                 <div id="roof-grid"></div>
-                <button onclick="saveGrid()">Save Grid</button>
+                
             </div>
             <div id="viewport" style="display:none;"></div>
             <div id="settings" style="display:none;">
@@ -279,7 +443,7 @@
         function createGrid() {
             const grid = document.getElementById('grid');
             grid.innerHTML = '';
-            grid.style.gridTemplateColumns = `repeat(${gridSize}, 50px)`;
+            grid.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
 
             for (let i = 0; i < gridSize * gridSize; i++) {
                 const cell = document.createElement('div');
@@ -292,7 +456,7 @@
         function createRoofGrid() {
             const roofGrid = document.getElementById('roof-grid');
             roofGrid.innerHTML = '';
-            roofGrid.style.gridTemplateColumns = `repeat(${gridSize}, 50px)`;
+            roofGrid.style.gridTemplateColumns = `repeat(${gridSize}, 1fr)`;
 
             for (let i = 0; i < gridSize * gridSize; i++) {
                 const cell = document.createElement('div');
